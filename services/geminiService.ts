@@ -64,7 +64,7 @@ export const getChatResponse = async (
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "x-ai/grok-code-fast-1", // مدل بدون فیلتر
+        model: "google/gemini-2.5-pro", // مدل بدون فیلتر
         messages: formattedMessages,
         temperature: 1,
       }),
