@@ -64,7 +64,7 @@ export const getChatResponse = async (
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "minimax/minimax-m2:free", // مدل بدون فیلتر
+        model: "cognitivecomputations/dolphin-mistral-24b-venice-edition:free", // مدل بدون فیلتر
         messages: formattedMessages,
         temperature: 1,
       }),
