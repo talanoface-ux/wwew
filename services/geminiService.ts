@@ -64,7 +64,7 @@ export const getChatResponse = async (
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "z-ai/glm-4.5-air:free", // مدل بدون فیلتر
+        model: "deepseek/deepseek-chat-v3-0324:free", // مدل بدون فیلتر
         messages: formattedMessages,
         temperature: 1,
       }),
