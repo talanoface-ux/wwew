@@ -64,7 +64,7 @@ export const getChatResponse = async (
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "deepseek/deepseek-chat-v3-0324:free", // مدل بدون فیلتر
+        model: "google/gemini-2.0-flash-exp:free", // مدل بدون فیلتر
         messages: formattedMessages,
         temperature: 1,
       }),
