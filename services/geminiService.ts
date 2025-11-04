@@ -64,7 +64,7 @@ export const getChatResponse = async (
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "cognitivecomputations/dolphin-mistral-24b-venice-edition:free", // مدل بدون فیلتر
+        model: "neversleep/llama-3.1-lumimaid-8b", // مدل بدون فیلتر
         messages: formattedMessages,
         temperature: 1,
       }),
