@@ -1,81 +1,91 @@
-import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
-import { Message, Role, SafetyLevel } from '../types';
+// src/services/geminiService.ts
+// نسخه نهایی با کنترل کامل خطا، پشتیبانی از systemPrompt کاراکتر و بررسی کلید API
 
-// NOTE: The API key is sourced from `process.env.API_KEY`, which is assumed
-// to be set in the execution environment. Do not add any UI for it.
-const getApiKey = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("متغیر محیطی API_KEY تنظیم نشده است.");
+import { Message, Role } from "../types";
+import { characters } from "../data/characters";
+
+export interface ChatResponse {
+  text: string | null;
+}
+
+// گرفتن کلید از محیط (Vercel یا Local)
+const getApiKey = (): string | null => {
+  const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
+  if (!apiKey || apiKey.trim() === "") {
+    console.warn("⚠️ کلید OpenRouter API وارد نشده است!");
+    return null;
   }
   return apiKey;
 };
 
-const safetyLevelMap: Record<SafetyLevel, HarmBlockThreshold> = {
-  [SafetyLevel.DEFAULT]: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-  [SafetyLevel.RELAXED]: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-  [SafetyLevel.NO_FILTERS]: HarmBlockThreshold.BLOCK_NONE,
-};
-
-export interface GeminiResponse {
-  text: string | null;
-}
-
+// تابع اصلی برای پاسخ چت
 export const getChatResponse = async (
   messages: Message[],
   systemInstruction: string,
-  safetyLevel: SafetyLevel
-): Promise<GeminiResponse> => {
+  currentCharacterId?: string
+): Promise<ChatResponse> => {
   try {
-    const ai = new GoogleGenAI({ apiKey: getApiKey() });
+    const apiKey = getApiKey();
 
-    const modelMessages = messages
-        .filter(m => m.role !== Role.SYSTEM && (m.content?.trim() ?? '') !== '')
+    // اگر کلید وجود ندارد، ارور نده — پیام واضح برگردون
+    if (!apiKey) {
+      return {
+        text: "❌ کلید OpenRouter API تنظیم نشده است. لطفاً در تنظیمات پروژه (VITE_OPENROUTER_API_KEY) را وارد کنید.",
+      };
+    }
+
+    // پیدا کردن کاراکتر فعال
+    const selectedCharacter = characters.find(c => c.id === currentCharacterId);
+
+    // ساخت پرامپت نهایی
+    const systemPrompt =
+      systemInstruction ||
+      selectedCharacter?.systemPrompt ||
+      "تو یک چت‌بات فارسی هستی.";
+
+    // آماده‌سازی پیام‌ها برای ارسال به API
+    const formattedMessages = [
+      { role: "system", content: systemPrompt },
+      ...messages
+        .filter(m => m.content?.trim() !== "")
         .map(m => ({
-            role: m.role === Role.ASSISTANT ? 'model' : 'user',
-            parts: [{ text: m.content! }]
-        }));
-    
-    const safetySettings = [
-        {
-          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-          threshold: safetyLevelMap[safetyLevel] || HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-          threshold: safetyLevelMap[safetyLevel] || HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-          threshold: safetyLevelMap[safetyLevel] || HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-          threshold: safetyLevelMap[safetyLevel] || HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
+          role: m.role === Role.ASSISTANT ? "assistant" : "user",
+          content: m.content,
+        })),
     ];
 
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-pro',
-        contents: modelMessages,
-        config: {
-            systemInstruction: systemInstruction,
-            temperature: 1.0,
-            topP: 0.9,
-            safetySettings: safetySettings,
-        }
+    // ارسال به OpenRouter API
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://wawbeawbrawb.vercel.app/", // آدرس سایتت
+        "X-Title": "Iran Partner Chatbot",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "minimax/minimax-m2:free", // مدل بدون فیلتر
+        messages: formattedMessages,
+        temperature: 1,
+      }),
     });
 
-    return { text: response.text };
+    // اگر پاسخ نداد
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ خطا از OpenRouter API:", errorText);
+      return { text: "⚠️ خطا در اتصال به OpenRouter. لطفاً بعداً دوباره تلاش کنید." };
+    }
+
+    // پاسخ موفق
+    const data = await response.json();
+    const text = data?.choices?.[0]?.message?.content || "⚠️ پاسخی از مدل دریافت نشد.";
+    return { text };
 
   } catch (error) {
-    console.error("Error fetching from Gemini API:", error);
-    if (error instanceof Error) {
-        if (error.message.includes('SAFETY')) {
-            throw new Error(`پاسخ به دلیل تنظیمات ایمنی مسدود شد. می‌توانید «سطح ایمنی» را در تنظیمات پیشرفته تغییر دهید.`);
-        }
-        throw new Error(`خطایی رخ داد: ${error.message}. لطفاً کلید API و اتصال شبکه خود را بررسی کنید.`);
-    }
-    throw new Error("یک خطای ناشناخته رخ داد.");
+    console.error("⚠️ Chat Error:", error);
+    return {
+      text: "⚠️ مشکلی در ارتباط با API پیش آمد. لطفاً اتصال اینترنت یا کلید را بررسی کنید.",
+    };
   }
 };
