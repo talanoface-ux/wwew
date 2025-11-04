@@ -64,7 +64,7 @@ export const getChatResponse = async (
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-oss-20b:free", // مدل بدون فیلتر
+        model: "deepseek/deepseek-r1-0528:free", // مدل بدون فیلتر
         messages: formattedMessages,
         temperature: 1,
       }),
